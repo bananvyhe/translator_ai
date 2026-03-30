@@ -4,7 +4,10 @@ param(
   [int]$RemotePort,
   [string]$RemoteBindAddress,
   [int]$LocalPort,
-  [string]$SshKeyPath
+  [string]$SshKeyPath,
+  [switch]$ManageMiner,
+  [switch]$LazyModelLoad,
+  [switch]$UnloadModelAfterRequest
 )
 
 $ErrorActionPreference = 'Stop'
@@ -22,7 +25,7 @@ function Import-DotEnv {
     if ($idx -lt 1) { return }
     $name = $line.Substring(0, $idx).Trim()
     $value = $line.Substring($idx + 1)
-    if (-not [string]::IsNullOrWhiteSpace($name)) {
+    if (-not [string]::IsNullOrWhiteSpace($name) -and [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name, 'Process'))) {
       [Environment]::SetEnvironmentVariable($name, $value, 'Process')
     }
   }
@@ -47,6 +50,16 @@ function Get-EnvInt {
 }
 
 Import-DotEnv -Path (Join-Path $root '.env')
+
+if ($ManageMiner) {
+  [Environment]::SetEnvironmentVariable('MANAGE_MINER', 'true', 'Process')
+}
+if ($LazyModelLoad) {
+  [Environment]::SetEnvironmentVariable('LAZY_MODEL_LOAD', 'true', 'Process')
+}
+if ($UnloadModelAfterRequest) {
+  [Environment]::SetEnvironmentVariable('UNLOAD_MODEL_AFTER_REQUEST', 'true', 'Process')
+}
 
 if ([string]::IsNullOrWhiteSpace($VpsHost)) { $VpsHost = $env:VPS_HOST }
 if ([string]::IsNullOrWhiteSpace($VpsUser)) { $VpsUser = $env:VPS_USER }

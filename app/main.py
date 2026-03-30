@@ -1,3 +1,4 @@
+import gc
 import math
 import os
 import re
@@ -41,10 +42,10 @@ class Settings(BaseModel):
     target_lang_code: str = os.getenv("TARGET_LANG_CODE", "ru-RU")
     max_input_chars: int = int(os.getenv("MAX_INPUT_CHARS", "24000"))
     max_chunk_chars: int = int(os.getenv("MAX_CHUNK_CHARS", "3500"))
-    max_new_tokens_title: int = int(os.getenv("MAX_NEW_TOKENS_TITLE", "256"))
-    max_new_tokens_preview: int = int(os.getenv("MAX_NEW_TOKENS_PREVIEW", "768"))
-    max_new_tokens_body: int = int(os.getenv("MAX_NEW_TOKENS_BODY", "4096"))
-    generation_num_beams: int = int(os.getenv("GENERATION_NUM_BEAMS", "6"))
+    max_new_tokens_title: int = int(os.getenv("MAX_NEW_TOKENS_TITLE", "192"))
+    max_new_tokens_preview: int = int(os.getenv("MAX_NEW_TOKENS_PREVIEW", "512"))
+    max_new_tokens_body: int = int(os.getenv("MAX_NEW_TOKENS_BODY", "2048"))
+    generation_num_beams: int = int(os.getenv("GENERATION_NUM_BEAMS", "4"))
     generation_length_penalty: float = float(os.getenv("GENERATION_LENGTH_PENALTY", "1.0"))
     generation_repetition_penalty: float = float(os.getenv("GENERATION_REPETITION_PENALTY", "1.0"))
     translation_token: Optional[str] = os.getenv("TRANSLATION_TOKEN")
@@ -53,11 +54,12 @@ class Settings(BaseModel):
 
     manage_miner: bool = os.getenv("MANAGE_MINER", "false").lower() in ("1", "true", "yes")
     miner_process_name: str = os.getenv("MINER_PROCESS_NAME", "onezerominer.exe")
+    miner_stop_path: str = os.getenv("MINER_STOP_PATH", r"C:\cofex\translation\stop_onezerominer.cmd")
     miner_launch_path: str = os.getenv(
         "MINER_LAUNCH_PATH",
         os.getenv("MINER_BAT_PATH", r"C:\bbb\onezerominer-win64-1.7.4\qubitcoin.bat"),
     )
-    miner_restart_delay_sec: int = int(os.getenv("MINER_RESTART_DELAY_SEC", "2"))
+    miner_restart_delay_sec: int = int(os.getenv("MINER_RESTART_DELAY_SEC", "15"))
 
     lazy_model_load: bool = os.getenv("LAZY_MODEL_LOAD", "false").lower() in ("1", "true", "yes")
     unload_model_after_request: bool = os.getenv("UNLOAD_MODEL_AFTER_REQUEST", "false").lower() in ("1", "true", "yes")
@@ -95,6 +97,8 @@ class Translator:
         self.request_lock = threading.Lock()
         self.lock = threading.Lock()
         self.miner_lock = threading.Lock()
+        self.idle_timer_lock = threading.Lock()
+        self.idle_timer: Optional[threading.Timer] = None
         self.active_jobs = 0
         self.processor = None
         self.model = None
@@ -162,21 +166,77 @@ class Translator:
                 return
 
             self._log("[model] unloading")
-            self.model.to("cpu")
+            model = self.model
+            processor = self.processor
             self.model = None
             self.processor = None
+            del model
+            del processor
+            gc.collect()
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
                 torch.cuda.ipc_collect()
             self._log("[model] unloaded")
 
+    def _cancel_idle_timer(self) -> None:
+        with self.idle_timer_lock:
+            timer = self.idle_timer
+            self.idle_timer = None
+
+        if timer is not None:
+            timer.cancel()
+
+    def _run_idle_timeout(self) -> None:
+        with self.idle_timer_lock:
+            self.idle_timer = None
+
+        if not self.settings.manage_miner:
+            return
+
+        if self.active_jobs > 0:
+            self._log(f"[miner] idle timeout skipped; active_jobs={self.active_jobs}")
+            return
+
+        self._log(f"[miner] idle timeout reached after {self.settings.miner_restart_delay_sec}s")
+        try:
+            self._unload_model()
+        except Exception as unload_exc:
+            self._log(f"[model] unload failed: {unload_exc}")
+        self._start_miner()
+
+    def _schedule_idle_timeout(self) -> None:
+        if not self.settings.manage_miner:
+            return
+
+        with self.idle_timer_lock:
+            if self.idle_timer is not None:
+                self.idle_timer.cancel()
+
+            timer = threading.Timer(self.settings.miner_restart_delay_sec, self._run_idle_timeout)
+            timer.daemon = True
+            self.idle_timer = timer
+            timer.start()
+        self._log(f"[miner] idle timeout scheduled in {self.settings.miner_restart_delay_sec}s")
+
     def _stop_miner(self) -> None:
         if not self.settings.manage_miner:
             return
 
+        stop_path = self._resolve_miner_stop_path()
+        if stop_path is not None:
+            self._log(f"[miner] stopping via {stop_path}")
+            subprocess.run(
+                ["cmd", "/c", str(stop_path)],
+                cwd=str(stop_path.parent),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            )
+            return
+
         self._log(f"[miner] stopping {self.settings.miner_process_name}")
         subprocess.run(
-            ["taskkill", "/IM", self.settings.miner_process_name, "/F"],
+            ["taskkill", "/IM", self.settings.miner_process_name, "/T", "/F"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             check=False,
@@ -184,6 +244,27 @@ class Translator:
 
     def _resolve_miner_launch_path(self) -> Optional[Path]:
         raw_path = Path(self.settings.miner_launch_path)
+        candidates = [raw_path]
+        if not raw_path.suffix:
+            candidates.extend([
+                raw_path.with_suffix(".lnk"),
+                raw_path.with_suffix(".bat"),
+                raw_path.with_suffix(".cmd"),
+                raw_path.with_suffix(".exe"),
+            ])
+            candidates.extend(sorted(raw_path.parent.glob(f"{raw_path.name}*.lnk")))
+            candidates.extend(sorted(raw_path.parent.glob(f"{raw_path.name}*.bat")))
+            candidates.extend(sorted(raw_path.parent.glob(f"{raw_path.name}*.cmd")))
+            candidates.extend(sorted(raw_path.parent.glob(f"{raw_path.name}*.exe")))
+
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+
+        return None
+
+    def _resolve_miner_stop_path(self) -> Optional[Path]:
+        raw_path = Path(self.settings.miner_stop_path)
         candidates = [raw_path]
         if not raw_path.suffix:
             candidates.extend([
@@ -224,6 +305,19 @@ class Translator:
             creationflags=subprocess.CREATE_NEW_CONSOLE,
         )
 
+    def _normalize_lang_code(self, raw_code: str, fallback: str) -> str:
+        code = (raw_code or "").strip()
+        if not code:
+            return fallback
+
+        normalized = code.replace("_", "-")
+        lowered = normalized.lower()
+        if lowered in {"en-us", "en_us"}:
+            return "en"
+        if lowered in {"ru-ru", "ru_ru"}:
+            return "ru-RU"
+        return normalized
+
     def _enter_translation_job(self) -> None:
         if not self.settings.manage_miner:
             return
@@ -241,9 +335,6 @@ class Translator:
         with self.miner_lock:
             self.active_jobs = max(0, self.active_jobs - 1)
             self._log(f"[miner] translation job exited; active_jobs={self.active_jobs}")
-            if self.active_jobs == 0:
-                time.sleep(self.settings.miner_restart_delay_sec)
-                self._start_miner()
 
     def _looks_like_html(self, text: str) -> bool:
         return bool(re.search(r"<[^>]+>", text))
@@ -356,6 +447,8 @@ class Translator:
         assert self.model is not None
 
         effective_max_new_tokens = self._estimate_max_new_tokens(text, max_new_tokens, field_name)
+        source_lang_code = self._normalize_lang_code(self.settings.source_lang_code, "en")
+        target_lang_code = self._normalize_lang_code(self.settings.target_lang_code, "ru-RU")
 
         messages = [
             {
@@ -363,8 +456,8 @@ class Translator:
                 "content": [
                     {
                         "type": "text",
-                        "source_lang_code": self.settings.source_lang_code,
-                        "target_lang_code": self.settings.target_lang_code,
+                        "source_lang_code": source_lang_code,
+                        "target_lang_code": target_lang_code,
                         "text": text,
                     }
                 ],
@@ -440,6 +533,7 @@ class Translator:
         return fallback
 
     def translate_article(self, payload: TranslationRequest) -> TranslationResponse:
+        self._cancel_idle_timer()
         queued_at = time.monotonic()
         self._log(
             "[translate] request queued "
@@ -486,8 +580,13 @@ class Translator:
                 self._log(f"[translate] request failed after {time.monotonic() - started_at:.1f}s: {exc}")
                 raise
             finally:
-                if self.settings.unload_model_after_request:
-                    self._unload_model()
+                if self.settings.manage_miner:
+                    self._schedule_idle_timeout()
+                elif self.settings.unload_model_after_request:
+                    try:
+                        self._unload_model()
+                    except Exception as unload_exc:
+                        self._log(f"[model] unload failed: {unload_exc}")
                 self._exit_translation_job()
 
 

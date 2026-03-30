@@ -35,9 +35,13 @@ Miner automation is disabled by default:
 
 - `MANAGE_MINER=false`
 - `MINER_PROCESS_NAME=onezerominer.exe`
+- `MINER_STOP_PATH=C:\cofex\translation\stop_onezerominer.cmd`
 - `MINER_LAUNCH_PATH=C:\Users\fuler\Desktop\qubitcoin`
-- `MINER_RESTART_DELAY_SEC=2`
-- `GENERATION_NUM_BEAMS=1` for a much faster default
+- `MINER_RESTART_DELAY_SEC=15`
+- `GENERATION_NUM_BEAMS=4` for a balanced quality/speed default
+- `MAX_NEW_TOKENS_TITLE=192`
+- `MAX_NEW_TOKENS_PREVIEW=512`
+- `MAX_NEW_TOKENS_BODY=2048`
 - `GENERATION_LENGTH_PENALTY=1.0`
 - `GENERATION_REPETITION_PENALTY=1.0`
 - `MAX_CHUNK_CHARS=800` to `1200` is a safer speed-oriented range for `TranslateGemma`
@@ -101,6 +105,7 @@ It is the easiest way to see the stop/start and translation flow live.
 Rule of thumb:
 
 - use `C:\cofex\translation\start_visible_translation.cmd` to start
+- use `C:\cofex\translation\start_idle_translation.cmd` if you want idle-mining mode with automatic miner stop/start around translations
 - use `C:\cofex\translation\stop_visible_translation.cmd` to stop
 - keep settings in `.env`; the launcher reads them on start, so changes show up automatically
 - if you want miner control back later, set `MANAGE_MINER=true`
@@ -214,6 +219,14 @@ If you want the GPU to stay free while the VPS is idle, use these settings toget
 - `LAZY_MODEL_LOAD=true`
 - `UNLOAD_MODEL_AFTER_REQUEST=true`
 
-That mode makes the translator load only when the first request arrives, stop the miner while translation is running, and release the model again after the request finishes. It is slower for repeated back-to-back translations, but it is the right setup when you want the miner to come back automatically after a batch.
+That mode makes the translator load only when the first request arrives, stop the miner while translation is running, and keep the model loaded until the idle window expires after the last request. It is slower for repeated back-to-back translations only if the gap exceeds the idle window, but it is the right setup when you want the miner to come back automatically after a batch.
 
 Keep `MINER_PROCESS_NAME` pointed at the real miner process name and `MINER_LAUNCH_PATH` pointed at `C:\bbb\onezerominer-win64-1.7.4\qubitcoin.bat` if you want the automatic stop/start hooks to work reliably.
+
+For convenience, `start_idle_translation.cmd` enables that mode and starts the miner if it is not already running before opening the translation launcher.
+
+If you ever see `dict object has no attribute 'en-US'`, set `SOURCE_LANG_CODE=en` in `.env` or keep the default. The current template accepts `en`, `ru`, and regional variants that actually exist in the model's language map.
+
+Because the service translates in paragraph-sized chunks, these token limits are tuned per chunk rather than for one giant body prompt. The effective token budget is still computed per chunk in code, so these values only act as upper caps. If you want more literal output for a specific article, raise `MAX_NEW_TOKENS_BODY` first.
+
+When `MANAGE_MINER=true`, `MINER_RESTART_DELAY_SEC` is treated as an idle window after the last translation. During that window the model stays loaded and the miner stays off; after the window expires, the model unloads and the miner restarts.
