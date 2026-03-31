@@ -61,7 +61,7 @@ class Settings(BaseModel):
     )
     miner_restart_delay_sec: int = int(os.getenv("MINER_RESTART_DELAY_SEC", "15"))
 
-    lazy_model_load: bool = os.getenv("LAZY_MODEL_LOAD", "false").lower() in ("1", "true", "yes")
+    lazy_model_load: bool = os.getenv("LAZY_MODEL_LOAD", "true").lower() in ("1", "true", "yes")
     unload_model_after_request: bool = os.getenv("UNLOAD_MODEL_AFTER_REQUEST", "false").lower() in ("1", "true", "yes")
 
 
