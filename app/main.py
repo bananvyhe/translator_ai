@@ -57,7 +57,7 @@ class Settings(BaseModel):
     miner_stop_path: str = os.getenv("MINER_STOP_PATH", r"C:\cofex\translation\stop_onezerominer.cmd")
     miner_launch_path: str = os.getenv(
         "MINER_LAUNCH_PATH",
-        os.getenv("MINER_BAT_PATH", r"C:\bbb\onezerominer-win64-1.7.4\qubitcoin.bat"),
+        os.getenv("MINER_WRAPPER_PATH", r"C:\cofex\translation\start_onezerominer_wrapper.cmd"),
     )
     miner_restart_delay_sec: int = int(os.getenv("MINER_RESTART_DELAY_SEC", "15"))
 
@@ -256,6 +256,10 @@ class Translator:
             candidates.extend(sorted(raw_path.parent.glob(f"{raw_path.name}*.bat")))
             candidates.extend(sorted(raw_path.parent.glob(f"{raw_path.name}*.cmd")))
             candidates.extend(sorted(raw_path.parent.glob(f"{raw_path.name}*.exe")))
+
+        fallback_wrapper = Path(r"C:\cofex\translation\start_onezerominer_wrapper.cmd")
+        if fallback_wrapper.exists():
+            candidates.insert(0, fallback_wrapper)
 
         for candidate in candidates:
             if candidate.exists():
