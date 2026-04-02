@@ -12,7 +12,11 @@ if (-not (Test-Path $logDir)) {
 $pidPath = Join-Path $logDir 'farmspot_miner.pid'
 
 $batPath = Join-Path $minerRoot 'qubitcoin.bat'
-$cmdLine = "title farmspot miner && cd /d `"$minerRoot`" && call `"$batPath`""
+$cmdArgs = @(
+  '/d',
+  '/c',
+  "cd /d `"$minerRoot`" && call `"$batPath`""
+)
 
-$process = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/d', '/k', $cmdLine) -WorkingDirectory $minerRoot -PassThru
+$process = Start-Process -FilePath 'cmd.exe' -ArgumentList $cmdArgs -WorkingDirectory $minerRoot -PassThru
 Set-Content -LiteralPath $pidPath -Value $process.Id

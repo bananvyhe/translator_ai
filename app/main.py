@@ -1,4 +1,5 @@
 import gc
+import json
 import math
 import os
 import re
@@ -8,6 +9,7 @@ import time
 from functools import lru_cache
 from pathlib import Path
 from typing import Optional
+from urllib import request as urllib_request
 
 import torch
 from dotenv import load_dotenv
@@ -57,9 +59,14 @@ class Settings(BaseModel):
     miner_stop_path: str = os.getenv("MINER_STOP_PATH", r"C:\cofex\translation\stop_onezerominer.cmd")
     miner_launch_path: str = os.getenv(
         "MINER_LAUNCH_PATH",
-        os.getenv("MINER_WRAPPER_PATH", r"C:\cofex\translation\start_onezerominer_wrapper.cmd"),
+        os.getenv("MINER_WRAPPER_PATH", r"C:\cofex\translation\start_onezerominer_wrapper.ps1"),
     )
     miner_restart_delay_sec: int = int(os.getenv("MINER_RESTART_DELAY_SEC", "15"))
+    neighbor_health_url: str = os.getenv(
+        "NEIGHBOR_HEALTH_URL",
+        os.getenv("DETECT_HEALTH_URL", "http://127.0.0.1:8018/health"),
+    )
+    neighbor_health_timeout_sec: float = float(os.getenv("NEIGHBOR_HEALTH_TIMEOUT_SEC", "2.0"))
 
     lazy_model_load: bool = os.getenv("LAZY_MODEL_LOAD", "true").lower() in ("1", "true", "yes")
     unload_model_after_request: bool = os.getenv("UNLOAD_MODEL_AFTER_REQUEST", "false").lower() in ("1", "true", "yes")
@@ -202,6 +209,14 @@ class Translator:
             self._unload_model()
         except Exception as unload_exc:
             self._log(f"[model] unload failed: {unload_exc}")
+
+        busy, reason = self._neighbor_is_busy()
+        if busy:
+            self._log(f"[miner] start skipped; {reason}")
+            self._schedule_idle_timeout()
+            return
+
+        self._log(f"[miner] start allowed; {reason}")
         self._start_miner()
 
     def _schedule_idle_timeout(self) -> None:
@@ -217,6 +232,27 @@ class Translator:
             self.idle_timer = timer
             timer.start()
         self._log(f"[miner] idle timeout scheduled in {self.settings.miner_restart_delay_sec}s")
+
+    def _neighbor_is_busy(self) -> tuple[bool, str]:
+        health_url = (self.settings.neighbor_health_url or "").strip()
+        if not health_url:
+            return False, "neighbor health disabled"
+
+        try:
+            req = urllib_request.Request(health_url, method="GET")
+            with urllib_request.urlopen(req, timeout=self.settings.neighbor_health_timeout_sec) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except Exception as exc:
+            return True, f"neighbor health unavailable: {exc}"
+
+        active_jobs = int(payload.get("active_jobs") or 0)
+        if active_jobs > 0:
+            return True, f"neighbor active_jobs={active_jobs}"
+
+        if payload.get("model_loaded"):
+            return True, "neighbor model_loaded=true"
+
+        return False, "neighbor idle"
 
     def _stop_miner(self) -> None:
         if not self.settings.manage_miner:
@@ -257,7 +293,7 @@ class Translator:
             candidates.extend(sorted(raw_path.parent.glob(f"{raw_path.name}*.cmd")))
             candidates.extend(sorted(raw_path.parent.glob(f"{raw_path.name}*.exe")))
 
-        fallback_wrapper = Path(r"C:\cofex\translation\start_onezerominer_wrapper.cmd")
+        fallback_wrapper = Path(r"C:\cofex\translation\start_onezerominer_wrapper.ps1")
         if fallback_wrapper.exists():
             candidates.insert(0, fallback_wrapper)
 
@@ -608,6 +644,7 @@ def health() -> dict:
         "dtype": settings.dtype,
         "cuda": torch.cuda.is_available(),
         "model_loaded": translator.model is not None,
+        "active_jobs": translator.active_jobs,
     }
 
 
