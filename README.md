@@ -36,8 +36,8 @@ Miner automation is disabled by default:
 - `MANAGE_MINER=false`
 - `MINER_PROCESS_NAME=onezerominer.exe`
 - `MINER_STOP_PATH=C:\cofex\translation\stop_onezerominer.cmd`
-- `MINER_WRAPPER_PATH=C:\cofex\translation\start_onezerominer_wrapper.ps1`
-- `MINER_LAUNCH_PATH=C:\cofex\translation\start_onezerominer_wrapper.ps1`
+- `MINER_WRAPPER_PATH=C:\cofex\translation\start_onezerominer_wrapper.cmd`
+- `MINER_LAUNCH_PATH=C:\cofex\translation\start_onezerominer_wrapper.cmd`
 - `MINER_RESTART_DELAY_SEC=15`
 - `NEIGHBOR_HEALTH_URL=http://127.0.0.1:8018/health`
 - `NEIGHBOR_HEALTH_TIMEOUT_SEC=2.0`
@@ -224,7 +224,7 @@ If you want the GPU to stay free while the VPS is idle, use these settings toget
 
 That mode makes the translator load only when the first request arrives, stop the miner while translation is running, and keep the model loaded until the idle window expires after the last request. It is slower for repeated back-to-back translations only if the gap exceeds the idle window, but it is the right setup when you want the miner to come back automatically after a batch.
 
-Keep `MINER_PROCESS_NAME` pointed at the real miner process name, `MINER_STOP_PATH` pointed at `C:\cofex\translation\stop_onezerominer.cmd`, and `MINER_LAUNCH_PATH` pointed at `C:\cofex\translation\start_onezerominer_wrapper.ps1` if you want the automatic stop/start hooks to work reliably.
+Keep `MINER_PROCESS_NAME` pointed at the real miner process name, `MINER_STOP_PATH` pointed at `C:\cofex\translation\stop_onezerominer.cmd`, and `MINER_LAUNCH_PATH` pointed at `C:\cofex\translation\start_onezerominer_wrapper.cmd` if you want the automatic stop/start hooks to work reliably.
 
 For convenience, `start_idle_translation.cmd` enables that mode and starts the miner if it is not already running before opening the translation launcher.
 
