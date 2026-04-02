@@ -278,6 +278,18 @@ class Translator:
             check=False,
         )
 
+    def _wait_for_miner_stopped(self, timeout_sec: float = 10.0) -> None:
+        if not self.settings.manage_miner:
+            return
+
+        deadline = time.monotonic() + timeout_sec
+        while time.monotonic() < deadline:
+            if not self._miner_is_running():
+                return
+            time.sleep(0.25)
+
+        self._log(f"[miner] stop wait timed out after {timeout_sec:.1f}s")
+
     def _resolve_miner_launch_path(self) -> Optional[Path]:
         raw_path = Path(self.settings.miner_launch_path)
         candidates = [raw_path]
@@ -367,6 +379,7 @@ class Translator:
             self._log(f"[miner] translation job entered; active_jobs={self.active_jobs}")
             if self.active_jobs == 1:
                 self._stop_miner()
+                self._wait_for_miner_stopped()
 
     def _exit_translation_job(self) -> None:
         if not self.settings.manage_miner:

@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
 $pidPath = Join-Path $root 'logs\farmspot_miner.pid'
 $minerBatPath = 'C:\bbb\onezerominer-win64-1.7.4\qubitcoin.bat'
+$minerWrapperPath = 'C:\cofex\translation\start_onezerominer_wrapper.cmd'
 
 function Stop-TreeByPid {
   param([int]$ProcessId)
@@ -21,6 +22,7 @@ function Stop-TreeByPid {
 function Stop-MatchingProcesses {
   $titleMatch = 'farmspot miner'
   $batPattern = [regex]::Escape($minerBatPath)
+  $wrapperPattern = [regex]::Escape($minerWrapperPath)
 
   Get-Process -ErrorAction SilentlyContinue |
     Where-Object { $_.MainWindowTitle -like "*$titleMatch*" } |
@@ -30,7 +32,7 @@ function Stop-MatchingProcesses {
     Where-Object {
       $_.Name -ieq 'cmd.exe' -and
       $_.CommandLine -and
-      $_.CommandLine -match $batPattern
+      ($_.CommandLine -match $batPattern -or $_.CommandLine -match $wrapperPattern)
     } |
     ForEach-Object { Stop-TreeByPid -ProcessId $_.ProcessId }
 
@@ -45,6 +47,25 @@ function Stop-MatchingProcesses {
   }
 }
 
+function Test-MinerStopped {
+  try {
+    $running = Get-Process -Name 'onezerominer' -ErrorAction SilentlyContinue
+    if ($running) {
+      return $false
+    }
+
+    $cmds = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+      $_.Name -ieq 'cmd.exe' -and $_.CommandLine -and (
+        $_.CommandLine -match [regex]::Escape($minerBatPath) -or
+        $_.CommandLine -match [regex]::Escape($minerWrapperPath)
+      )
+    }
+    return -not $cmds
+  } catch {
+    return $false
+  }
+}
+
 if (Test-Path -LiteralPath $pidPath) {
   $rawPid = Get-Content -LiteralPath $pidPath -ErrorAction SilentlyContinue | Select-Object -First 1
   $targetPid = 0
@@ -56,3 +77,11 @@ if (Test-Path -LiteralPath $pidPath) {
 }
 
 Stop-MatchingProcesses
+
+for ($i = 0; $i -lt 20; $i++) {
+  if (Test-MinerStopped) {
+    break
+  }
+  Start-Sleep -Milliseconds 250
+  Stop-MatchingProcesses
+}
