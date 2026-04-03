@@ -254,10 +254,26 @@ class Translator:
 
         return False, "neighbor idle"
 
+    def _miner_is_running(self) -> bool:
+        try:
+            result = subprocess.run(
+                ["tasklist", "/FI", f"IMAGENAME eq {self.settings.miner_process_name}", "/NH"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            output = (result.stdout or "") + "\n" + (result.stderr or "")
+            return self.settings.miner_process_name.lower() in output.lower()
+        except Exception as exc:
+            self._log(f"[miner] running check failed: {exc}")
+            return False
+
     def _stop_miner(self) -> None:
         if not self.settings.manage_miner:
             return
 
+        was_running = self._miner_is_running()
+        self._log(f"[miner] stop requested; running_before={was_running}")
         stop_path = self._resolve_miner_stop_path()
         if stop_path is not None:
             self._log(f"[miner] stopping via {stop_path}")
@@ -277,6 +293,7 @@ class Translator:
             stderr=subprocess.DEVNULL,
             check=False,
         )
+        self._log(f"[miner] stop finished; running_after={self._miner_is_running()}")
 
     def _wait_for_miner_stopped(self, timeout_sec: float = 10.0) -> None:
         if not self.settings.manage_miner:
@@ -356,6 +373,7 @@ class Translator:
             stderr=subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NEW_CONSOLE,
         )
+        self._log(f"[miner] start issued; running_after={self._miner_is_running()}")
 
     def _normalize_lang_code(self, raw_code: str, fallback: str) -> str:
         code = (raw_code or "").strip()
