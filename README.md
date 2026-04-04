@@ -38,7 +38,7 @@ Miner automation is disabled by default:
 - `MINER_STOP_PATH=C:\cofex\translation\stop_onezerominer.cmd`
 - `MINER_WRAPPER_PATH=C:\cofex\translation\start_onezerominer_wrapper.cmd`
 - `MINER_LAUNCH_PATH=C:\cofex\translation\start_onezerominer_wrapper.cmd`
-- `MINER_RESTART_DELAY_SEC=15`
+- `MINER_RESTART_DELAY_SEC=180`
 - `NEIGHBOR_HEALTH_URL=http://127.0.0.1:8018/health`
 - `NEIGHBOR_HEALTH_TIMEOUT_SEC=2.0`
 - `GENERATION_NUM_BEAMS=4` for a balanced quality/speed default

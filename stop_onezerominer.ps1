@@ -2,36 +2,40 @@ param()
 
 $ErrorActionPreference = 'Stop'
 
-$title = 'farmspot miner'
-$windowProcesses = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -eq $title }
-
-if ($windowProcesses) {
-  $ids = ($windowProcesses | Select-Object -ExpandProperty Id) -join ','
-  Write-Host "[miner] closing window title='$title' pids=$ids"
-  foreach ($process in $windowProcesses) {
-    try {
-      Stop-Process -Id $process.Id -Force -ErrorAction Stop
-    } catch {
-      Write-Warning ("[miner] failed to stop window pid {0}: {1}" -f $process.Id, $_.Exception.Message)
-    }
-  }
-} else {
-  Write-Host "[miner] window title '$title' not found"
-}
+$wrapperPath = 'C:\cofex\translation\start_onezerominer_wrapper.cmd'
+$titleHint = 'farmspot miner'
 
 try {
-  $minerProcesses = Get-Process -Name 'onezerominer' -ErrorAction SilentlyContinue
-  if ($minerProcesses) {
-    $ids = ($minerProcesses | Select-Object -ExpandProperty Id) -join ','
-    Write-Host "[miner] closing onezerominer pids=$ids"
-    foreach ($process in $minerProcesses) {
-      try {
-        Stop-Process -Id $process.Id -Force -ErrorAction Stop
-      } catch {
-        Write-Warning ("[miner] failed to stop miner pid {0}: {1}" -f $process.Id, $_.Exception.Message)
-      }
+  $cmdProcesses = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+    $_.Name -ieq 'cmd.exe' -and
+    $_.CommandLine -and
+    $_.CommandLine -match [regex]::Escape($wrapperPath)
+  }
+
+  if (-not $cmdProcesses) {
+    Write-Host "[miner] wrapper cmd not found"
+    return
+  }
+
+  foreach ($process in $cmdProcesses) {
+    $windowTitle = $null
+    try {
+      $windowTitle = (Get-Process -Id $process.ProcessId -ErrorAction SilentlyContinue).MainWindowTitle
+    } catch {
+    }
+
+    if ($windowTitle -and $windowTitle -notlike "*$titleHint*") {
+      Write-Host "[miner] skip pid $($process.ProcessId); title='$windowTitle'"
+      continue
+    }
+
+    try {
+      & taskkill /PID $process.ProcessId /T /F | Out-Null
+      Write-Host "[miner] stopped wrapper pid $($process.ProcessId)"
+    } catch {
+      Write-Warning ("[miner] failed to stop wrapper pid {0}: {1}" -f $process.ProcessId, $_.Exception.Message)
     }
   }
 } catch {
-  Write-Warning ("[miner] miner stop check failed: {0}" -f $_.Exception.Message)
+  Write-Warning ("[miner] wrapper stop check failed: {0}" -f $_.Exception.Message)
 }

@@ -61,7 +61,7 @@ class Settings(BaseModel):
         "MINER_LAUNCH_PATH",
         os.getenv("MINER_WRAPPER_PATH", r"C:\cofex\translation\start_onezerominer_wrapper.cmd"),
     )
-    miner_restart_delay_sec: int = int(os.getenv("MINER_RESTART_DELAY_SEC", "15"))
+    miner_restart_delay_sec: int = int(os.getenv("MINER_RESTART_DELAY_SEC", "180"))
     neighbor_health_url: str = os.getenv(
         "NEIGHBOR_HEALTH_URL",
         os.getenv("DETECT_HEALTH_URL", "http://127.0.0.1:8018/health"),
