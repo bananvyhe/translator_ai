@@ -553,6 +553,10 @@ class Translator:
                 generation = self.model.generate(
                     **inputs,
                     do_sample=False,
+                    num_beams=self.settings.generation_num_beams,
+                    length_penalty=self.settings.generation_length_penalty,
+                    repetition_penalty=self.settings.generation_repetition_penalty,
+                    early_stopping=True,
                     max_new_tokens=effective_max_new_tokens,
                     pad_token_id=self.processor.tokenizer.eos_token_id,
                 )
@@ -573,27 +577,35 @@ class Translator:
         return translated
 
     def _translate_in_chunks(self, text: str, max_new_tokens: int, label: str) -> str:
-        chunks = self._split_for_translation(text)
-        if not chunks:
+        paragraphs = [p.strip() for p in re.split(r"\n\s*\n+", text.strip()) if p.strip()]
+        if not paragraphs:
             return ""
 
-        if len(chunks) == 1:
-            return self._translate_text(chunks[0], max_new_tokens, label)
-
         self._log(
-            f"[translate] {label} split into {len(chunks)} chunks; "
-            f"sizes={[len(chunk) for chunk in chunks]} html={self._looks_like_html(text)}"
+            f"[translate] {label} split into {len(paragraphs)} blocks; "
+            f"sizes={[len(paragraph) for paragraph in paragraphs]} html={self._looks_like_html(text)}"
         )
 
-        translated_chunks = []
-        for index, chunk in enumerate(chunks, start=1):
-            chunk_started_at = time.monotonic()
-            translated_chunks.append(self._translate_text(chunk, max_new_tokens, label))
-            self._log(
-                f"[translate] {label} chunk {index}/{len(chunks)} finished "
-                f"in {time.monotonic() - chunk_started_at:.1f}s"
+        translated_blocks = []
+        for index, paragraph in enumerate(paragraphs, start=1):
+            chunks = [paragraph] if len(paragraph) <= max(400, min(self.settings.max_chunk_chars, self.settings.max_input_chars)) else self._split_long_segment(
+                paragraph,
+                max(400, min(self.settings.max_chunk_chars, self.settings.max_input_chars)),
             )
-        return "\n\n".join(translated_chunks)
+            translated_parts = []
+            block_started_at = time.monotonic()
+            for chunk in chunks:
+                translated_parts.append(self._translate_text(chunk, max_new_tokens, label))
+
+            # A long source paragraph may need several model calls, but those
+            # pieces must remain one block for the Rails HTML renderer.
+            translated_block = re.sub(r"\n\s*\n+", "\n", " ".join(part.strip() for part in translated_parts if part.strip())).strip()
+            translated_blocks.append(translated_block)
+            self._log(
+                f"[translate] {label} block {index}/{len(paragraphs)} finished "
+                f"in {time.monotonic() - block_started_at:.1f}s chunks={len(chunks)}"
+            )
+        return "\n\n".join(translated_blocks)
 
     def _fallback_text(self, translated: str, source: str, field_name: str) -> str:
         cleaned = translated.strip()

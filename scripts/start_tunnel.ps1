@@ -1,10 +1,10 @@
-﻿param(
+param(
   [Parameter(Mandatory=$true)][string]$VpsHost,
   [Parameter(Mandatory=$true)][string]$VpsUser,
   [int]$RemotePort = 19191,
-  [string]$RemoteBindAddress = "127.0.0.1",
+  [string]$RemoteBindAddress = "",
   [int]$LocalPort = 8008,
-  [string]$SshKeyPath = "$HOME\.ssh\farmspot_vps_ed25519",
+  [string]$SshKeyPath = "",
   [string]$SshPassword = $null,
   [string]$VpsHostKeySha256 = $null,
   [switch]$SkipHostKeyCheck,
@@ -122,7 +122,23 @@ function Resolve-KnownHost {
   }
 }
 
-Import-DotEnv -Path (Join-Path (Get-Location) '.env')
+Import-DotEnv -Path (Join-Path ($PSScriptRoot | Split-Path -Parent) '.env')
+
+if (-not $PSBoundParameters.ContainsKey('RemotePort')) {
+  $RemotePort = if ([string]::IsNullOrWhiteSpace($env:REMOTE_PORT)) { 19191 } else { [int]$env:REMOTE_PORT }
+}
+if ([string]::IsNullOrWhiteSpace($RemoteBindAddress)) {
+  $RemoteBindAddress = $env:REMOTE_BIND_ADDRESS
+}
+if ([string]::IsNullOrWhiteSpace($RemoteBindAddress)) {
+  $RemoteBindAddress = '127.0.0.1'
+}
+if (-not $PSBoundParameters.ContainsKey('LocalPort')) {
+  $LocalPort = if ([string]::IsNullOrWhiteSpace($env:LOCAL_PORT)) { 8008 } else { [int]$env:LOCAL_PORT }
+}
+if ([string]::IsNullOrWhiteSpace($SshKeyPath)) {
+  $SshKeyPath = $env:SSH_KEY_PATH
+}
 
 if ($SkipHostKeyCheck) {
   $VpsHostKeySha256 = $null
@@ -181,7 +197,12 @@ try {
       $env:DISPLAY = 'none'
       $sshArgs += @('-o', 'PreferredAuthentications=password', '-o', 'PubkeyAuthentication=no', '-o', 'BatchMode=no')
     } elseif (Test-Path $SshKeyPath) {
-      $sshArgs += @('-i', $SshKeyPath)
+      $sshArgs += @(
+        '-i', $SshKeyPath,
+        '-o', 'IdentitiesOnly=yes',
+        '-o', 'PreferredAuthentications=publickey',
+        '-o', 'PubkeyAuthentication=yes'
+      )
     } else {
       throw "No SSH auth method available. Set SSH_PASSWD in .env or provide key at $SshKeyPath."
     }
@@ -196,4 +217,3 @@ try {
 } finally {
   Stop-Transcript | Out-Null
 }
-
