@@ -37,7 +37,7 @@ class Settings(BaseModel):
 
     model_id: str = os.getenv("MODEL_ID", "google/translategemma-4b-it")
     host: str = os.getenv("HOST", "127.0.0.1")
-    port: int = int(os.getenv("PORT", "8008"))
+    port: int = int(os.getenv("PORT", "8108"))
     device: str = os.getenv("DEVICE", "cuda")
     dtype: str = os.getenv("DTYPE", "bfloat16")
     source_lang_code: str = os.getenv("SOURCE_LANG_CODE", "en")

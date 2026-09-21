@@ -24,8 +24,8 @@ $logPath = Join-Path $logDir ("service-{0}.log" -f (Get-Date -Format 'yyyyMMdd-H
 Write-Host "[service] logging to $logPath"
 Start-Transcript -Path $logPath | Out-Null
 try {
-  Write-Host '[service] starting uvicorn on 127.0.0.1:8008'
-  & $python -m uvicorn app.main:app --host 127.0.0.1 --port 8008
+  Write-Host '[service] starting uvicorn on 127.0.0.1:8108'
+  & $python -m uvicorn app.main:app --host 127.0.0.1 --port 8108
 } catch {
   Write-Host "[service] ERROR: $($_.Exception.Message)"
   throw

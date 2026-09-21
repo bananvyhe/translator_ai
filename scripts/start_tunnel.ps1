@@ -3,7 +3,7 @@ param(
   [Parameter(Mandatory=$true)][string]$VpsUser,
   [int]$RemotePort = 19191,
   [string]$RemoteBindAddress = "",
-  [int]$LocalPort = 8008,
+  [int]$LocalPort = 8108,
   [string]$SshKeyPath = "",
   [string]$SshPassword = $null,
   [string]$VpsHostKeySha256 = $null,
@@ -134,7 +134,7 @@ if ([string]::IsNullOrWhiteSpace($RemoteBindAddress)) {
   $RemoteBindAddress = '127.0.0.1'
 }
 if (-not $PSBoundParameters.ContainsKey('LocalPort')) {
-  $LocalPort = if ([string]::IsNullOrWhiteSpace($env:LOCAL_PORT)) { 8008 } else { [int]$env:LOCAL_PORT }
+  $LocalPort = if ([string]::IsNullOrWhiteSpace($env:LOCAL_PORT)) { 8108 } else { [int]$env:LOCAL_PORT }
 }
 if ([string]::IsNullOrWhiteSpace($SshKeyPath)) {
   $SshKeyPath = $env:SSH_KEY_PATH

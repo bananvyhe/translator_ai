@@ -53,7 +53,7 @@ Miner automation is disabled by default:
 - `VPS_USER=root`
 - `REMOTE_PORT=19191`
 - `REMOTE_BIND_ADDRESS=0.0.0.0`
-- `LOCAL_PORT=8008`
+- `LOCAL_PORT=8108`
 - `SSH_KEY_PATH=C:\Users\fuler\.ssh\farmspot_vps_ed25519`
 
 ## 4) Start everything manually
@@ -88,7 +88,7 @@ powershell -ExecutionPolicy Bypass -File .\stop_visible_translation.ps1
 
 That starts:
 
-- local translator on `127.0.0.1:8008`
+- local translator on `127.0.0.1:8108`
 - reverse tunnel to VPS `127.0.0.1:19191`
 
 If you want the VPS host itself to see the tunnel, the default `127.0.0.1:19191` binding is enough. If the client runs in Docker on the VPS and needs to reach it via `host.docker.internal`, bind the tunnel to all interfaces instead and make sure `sshd` allows remote ports on non-loopback addresses. On the VPS, that usually means `GatewayPorts clientspecified` or `GatewayPorts yes` in `sshd_config`.
@@ -206,7 +206,7 @@ LOCK_KEY = "news:translation:pending_articles_lock"
 
 - A stale `news:translation:pending_articles_lock` prevents new translation jobs from processing `pending` articles. On this project it was observed with a TTL of about 12 hours, so jobs looked "successful" while doing nothing.
 - If that happens, remove only the stale translation lock and enqueue one fresh `NewsTranslatePendingArticlesJob`.
-- `stop_visible_translation.cmd` should stop the visible launcher windows and free port `8008`. If `8008` is still busy after stop, check for an older Python process still listening on the port.
+- `stop_visible_translation.cmd` should stop the visible launcher windows and free port `8108`. If `8108` is still busy after stop, check for an older Python process still listening on the port.
 - The visible launcher relies on PID files in `logs\`. Current names are:
   `farmspot_service.pid`
   `farmspot_tunnel.pid`

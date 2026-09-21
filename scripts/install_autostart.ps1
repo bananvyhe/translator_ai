@@ -3,7 +3,7 @@ param(
   [Parameter(Mandatory=$true)][string]$VpsUser,
   [int]$RemotePort = 19191,
   [string]$RemoteBindAddress = "",
-  [int]$LocalPort = 8008,
+  [int]$LocalPort = 8108,
   [string]$SshKeyPath = "",
   [string]$TaskName = "farmspot-translation"
 )
@@ -54,7 +54,7 @@ if ([string]::IsNullOrWhiteSpace($VpsUser)) { $VpsUser = $env:VPS_USER }
 if (-not $PSBoundParameters.ContainsKey('RemotePort')) { $RemotePort = Get-EnvInt -Name 'REMOTE_PORT' -DefaultValue 19191 }
 if ([string]::IsNullOrWhiteSpace($RemoteBindAddress)) { $RemoteBindAddress = $env:REMOTE_BIND_ADDRESS }
 if ([string]::IsNullOrWhiteSpace($RemoteBindAddress)) { $RemoteBindAddress = '127.0.0.1' }
-if (-not $PSBoundParameters.ContainsKey('LocalPort')) { $LocalPort = Get-EnvInt -Name 'LOCAL_PORT' -DefaultValue 8008 }
+if (-not $PSBoundParameters.ContainsKey('LocalPort')) { $LocalPort = Get-EnvInt -Name 'LOCAL_PORT' -DefaultValue 8108 }
 if ([string]::IsNullOrWhiteSpace($SshKeyPath)) { $SshKeyPath = $env:SSH_KEY_PATH }
 if ([string]::IsNullOrWhiteSpace($SshKeyPath)) { $SshKeyPath = "$HOME\.ssh\farmspot_vps_ed25519" }
 

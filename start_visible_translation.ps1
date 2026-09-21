@@ -65,7 +65,7 @@ if ([string]::IsNullOrWhiteSpace($VpsHost)) { $VpsHost = $env:VPS_HOST }
 if ([string]::IsNullOrWhiteSpace($VpsUser)) { $VpsUser = $env:VPS_USER }
 if (-not $PSBoundParameters.ContainsKey('RemotePort')) { $RemotePort = Get-EnvInt -Name 'REMOTE_PORT' -DefaultValue 19191 }
 if ([string]::IsNullOrWhiteSpace($RemoteBindAddress)) { $RemoteBindAddress = $env:REMOTE_BIND_ADDRESS }
-if (-not $PSBoundParameters.ContainsKey('LocalPort')) { $LocalPort = Get-EnvInt -Name 'LOCAL_PORT' -DefaultValue 8008 }
+if (-not $PSBoundParameters.ContainsKey('LocalPort')) { $LocalPort = Get-EnvInt -Name 'LOCAL_PORT' -DefaultValue 8108 }
 if ([string]::IsNullOrWhiteSpace($SshKeyPath)) { $SshKeyPath = $env:SSH_KEY_PATH }
 
 if ([string]::IsNullOrWhiteSpace($VpsHost)) { $VpsHost = '81.163.29.109' }
@@ -73,7 +73,7 @@ if ([string]::IsNullOrWhiteSpace($VpsUser)) { $VpsUser = 'root' }
 if ([string]::IsNullOrWhiteSpace($RemoteBindAddress)) { $RemoteBindAddress = '0.0.0.0' }
 if ([string]::IsNullOrWhiteSpace($SshKeyPath)) { $SshKeyPath = "$env:USERPROFILE\.ssh\farmspot_vps_ed25519" }
 if (-not $RemotePort) { $RemotePort = 19191 }
-if (-not $LocalPort) { $LocalPort = 8008 }
+if (-not $LocalPort) { $LocalPort = 8108 }
 
 Write-Host '[launcher] stopping old translation processes'
 & "$root\scripts\stop_windows_translation.ps1"
