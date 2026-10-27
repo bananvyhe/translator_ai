@@ -41,7 +41,7 @@ Miner automation is disabled by default:
 - `MINER_RESTART_DELAY_SEC=180`
 - `NEIGHBOR_HEALTH_URL=http://127.0.0.1:8018/health`
 - `NEIGHBOR_HEALTH_TIMEOUT_SEC=2.0`
-- `GENERATION_NUM_BEAMS=4` for a balanced quality/speed default
+- `GENERATION_NUM_BEAMS=8` for maximum beam search quality; reduce only if speed is preferred
 - `MAX_NEW_TOKENS_TITLE=192`
 - `MAX_NEW_TOKENS_PREVIEW=512`
 - `MAX_NEW_TOKENS_BODY=2048`
