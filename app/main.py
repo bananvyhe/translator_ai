@@ -77,6 +77,7 @@ class TranslationRequest(BaseModel):
     title: str = Field(default="", max_length=4000)
     preview_text: str = Field(default="", max_length=12000)
     body_text: str = Field(default="", max_length=200000)
+    contextual_title: bool = False
 
 
 class TranslationResponse(BaseModel):
@@ -615,6 +616,30 @@ class Translator:
         self._log(f"[translate] {field_name} fallback to source text because translation was blank")
         return fallback
 
+    def _translate_title_with_preview_context(self, title: str, preview_text: str) -> tuple[str, str]:
+        combined_text = f"{title.strip()}\n\n{preview_text.strip()}"
+        translated = self._translate_text(
+            combined_text,
+            self.settings.max_new_tokens_preview,
+            "title_context",
+        ).strip()
+        sections = re.split(r"\n\s*\n+", translated, maxsplit=1)
+        if len(sections) == 2 and sections[0].strip() and sections[1].strip():
+            return sections[0].strip(), sections[1].strip()
+
+        self._log("[translate] title_context separator missing; falling back to separate title and preview calls")
+        title_ru = self._fallback_text(
+            self._translate_text(title, self.settings.max_new_tokens_title, "title"),
+            title,
+            "title",
+        )
+        preview_ru = self._fallback_text(
+            self._translate_text(preview_text, self.settings.max_new_tokens_preview, "preview"),
+            preview_text,
+            "preview",
+        )
+        return title_ru, preview_ru
+
     def translate_article(self, payload: TranslationRequest) -> TranslationResponse:
         self._cancel_idle_timer()
         queued_at = time.monotonic()
@@ -629,14 +654,26 @@ class Translator:
             self._enter_translation_job()
             try:
                 title_started_at = time.monotonic()
-                title_raw = self._translate_text(payload.title, self.settings.max_new_tokens_title, "title")
-                title_ru = self._fallback_text(title_raw, payload.title, "title")
-                self._log(f"[translate] title finished in {time.monotonic() - title_started_at:.1f}s")
+                if payload.contextual_title and payload.title.strip() and payload.preview_text.strip():
+                    title_raw, preview_raw = self._translate_title_with_preview_context(
+                        payload.title,
+                        payload.preview_text,
+                    )
+                    title_ru = self._fallback_text(title_raw, payload.title, "title")
+                    preview_text_ru = self._fallback_text(preview_raw, payload.preview_text, "preview")
+                    self._log(
+                        f"[translate] contextual title and preview finished "
+                        f"in {time.monotonic() - title_started_at:.1f}s"
+                    )
+                else:
+                    title_raw = self._translate_text(payload.title, self.settings.max_new_tokens_title, "title")
+                    title_ru = self._fallback_text(title_raw, payload.title, "title")
+                    self._log(f"[translate] title finished in {time.monotonic() - title_started_at:.1f}s")
 
-                preview_started_at = time.monotonic()
-                preview_raw = self._translate_text(payload.preview_text, self.settings.max_new_tokens_preview, "preview")
-                preview_text_ru = self._fallback_text(preview_raw, payload.preview_text, "preview")
-                self._log(f"[translate] preview finished in {time.monotonic() - preview_started_at:.1f}s")
+                    preview_started_at = time.monotonic()
+                    preview_raw = self._translate_text(payload.preview_text, self.settings.max_new_tokens_preview, "preview")
+                    preview_text_ru = self._fallback_text(preview_raw, payload.preview_text, "preview")
+                    self._log(f"[translate] preview finished in {time.monotonic() - preview_started_at:.1f}s")
 
                 body_started_at = time.monotonic()
                 body_raw = self._translate_in_chunks(payload.body_text, self.settings.max_new_tokens_body, "body")

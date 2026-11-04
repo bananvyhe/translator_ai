@@ -160,7 +160,8 @@ Request:
 {
   "title": "Original title",
   "preview_text": "Original preview",
-  "body_text": "Original body"
+  "body_text": "Original body",
+  "contextual_title": true
 }
 ```
 
@@ -192,7 +193,8 @@ Set translation client to:
 
 ## 8) Pitfalls
 
-- `TranslateGemma 4B IT` is slow on long requests. Treat `title`, `preview_text`, and `body_text` as separate translations. Do not merge them into one large prompt.
+- News article callers can set `contextual_title: true` to translate `title` and `preview_text` together, so the preview disambiguates the headline. The service splits the two translated fields at their paragraph boundary; `body_text` remains a separate translation.
+- `TranslateGemma 4B IT` is slow on long requests. Keep the contextual title input limited to the headline and preview; do not merge the full article body into that input.
 - Do not send raw HTML to the model. The current service translates plain text and rebuilds the final structure outside the model.
 - The service now splits long `body_text` by paragraphs first, then splits oversized paragraphs by softer boundaries. If translation becomes too slow, reduce `MAX_CHUNK_CHARS` before changing anything else.
 - Very large `max_new_tokens` values slow down short fields badly. Short `title` and `preview_text` should stay on tight token budgets.
